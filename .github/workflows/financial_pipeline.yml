@@ -1,0 +1,63 @@
+name: Financial Data Pipeline
+
+on:
+  schedule:
+    - cron: "30 12 * * 1-5"   # 12:30 UTC = 18:00 IST, Mon-Fri
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+  S3_BUCKET: anmol-financial-lakehouse-2026
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest -q
+
+      - name: Run data ingestion
+        run: python src/ingestion/market_data.py
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload raw data to S3
+        run: aws s3 sync data/raw/ s3://${{ env.S3_BUCKET }}/raw/ --exclude ".gitkeep"
+
+  databricks:
+    needs: ingest
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: databricks/setup-cli@main
+
+      - name: Validate bundle
+        run: databricks bundle validate -t dev
+
+      - name: Deploy bundle
+        run: databricks bundle deploy -t dev
+
+      - name: Run Databricks job (bronze -> silver -> gold -> checks)
+        run: databricks bundle run financial_lakehouse_job -t dev

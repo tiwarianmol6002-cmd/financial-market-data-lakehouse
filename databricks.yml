@@ -1,0 +1,22 @@
+bundle:
+  name: financial-market-data-lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog that holds the bronze/silver/gold schemas
+    default: finance_lakehouse
+  raw_base:
+    description: Volume path (S3 external volume) that contains the raw parquet files
+    default: /Volumes/finance_lakehouse/bronze/raw_financial_data
+
+targets:
+  dev:
+    default: true
+    mode: development
+    # Uses your default CLI profile (databricks auth login --host <url>).
+    # To pin the workspace, add under this target:
+    # workspace:
+    #   host: https://YOUR-WORKSPACE-URL

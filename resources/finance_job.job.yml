@@ -1,0 +1,57 @@
+resources:
+  jobs:
+    financial_lakehouse_job:
+      name: financial-market-data-lakehouse
+      max_concurrent_runs: 1
+
+      # Scheduling is done by GitHub Actions (it must download fresh data and upload to S3 first).
+      # To schedule inside Databricks instead, add:
+      # schedule:
+      #   quartz_cron_expression: "0 0 18 ? * MON-FRI"
+      #   timezone_id: "Asia/Kolkata"
+      #   pause_status: UNPAUSED
+
+      tasks:
+        - task_key: setup
+          notebook_task:
+            notebook_path: ../databricks/00_setup.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: bronze_ingestion
+          depends_on:
+            - task_key: setup
+          notebook_task:
+            notebook_path: ../databricks/01_bronze.py
+            base_parameters:
+              catalog: ${var.catalog}
+              raw_base: ${var.raw_base}
+
+        - task_key: silver_transformation
+          depends_on:
+            - task_key: bronze_ingestion
+          notebook_task:
+            notebook_path: ../databricks/02_silver.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: gold_transformation
+          depends_on:
+            - task_key: silver_transformation
+          notebook_task:
+            notebook_path: ../databricks/03_gold.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        - task_key: data_quality_checks
+          depends_on:
+            - task_key: gold_transformation
+          notebook_task:
+            notebook_path: ../databricks/04_quality_checks.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+      # Email on failure - replace with your address
+      # email_notifications:
+      #   on_failure:
+      #     - you@example.com
