@@ -93,7 +93,7 @@ Add these repository secrets (Settings -> Secrets and variables -> Actions):
 |---|---|
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | IAM user with the policy in `iam/github_actions_policy.json` |
 | `DATABRICKS_HOST` | e.g. `https://dbc-xxxx.cloud.databricks.com` |
-| `DATABRICKS_CLIENT_ID`, `DATABRICKS_CLIENT_SECRET` | Databricks service principal (OAuth M2M) with access to the workspace and catalog |
+| `DATABRICKS_TOKEN` | Databricks personal access token (Settings -> Developer -> Access tokens) |
 
 The workflow runs weekdays at 18:00 IST (and on demand): ingest -> upload to S3 -> deploy bundle -> run the Databricks job. Scheduling lives in GitHub Actions on purpose; a Databricks-only schedule could not fetch fresh data from Yahoo.
 
@@ -118,3 +118,6 @@ yfinance is an unofficial scraper of Yahoo data: fine for a portfolio project, n
 - Built an end-to-end financial data lakehouse on AWS S3 and Databricks using Delta Lake and a Bronze/Silver/Gold architecture.
 - Engineered PySpark/SQL pipelines computing returns, moving averages, rolling volatility, drawdowns and sector indices for 10 equities over 10 years.
 - Automated ingestion and deployment with GitHub Actions and Databricks Jobs (Asset Bundles), including data-quality gates that fail the pipeline on violations.
+
+## Deployment note (Databricks Free Edition)
+This repo was run on Databricks Free Edition, which cannot read custom S3 locations. The workflow therefore archives raw data in S3 **and** copies the same files into a Unity Catalog managed volume (`finance_lakehouse.bronze.raw_financial_data`), which the Bronze notebook reads. On a full AWS workspace you can instead create an external location/volume on the S3 bucket (see `sql/00_unity_catalog_setup.sql`) and delete the "Copy fresh data" workflow step.
