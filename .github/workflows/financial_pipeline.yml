@@ -8,10 +8,14 @@ on:
 env:
   AWS_REGION: ap-south-1
   S3_BUCKET: anmol-financial-lakehouse-2026
+  VOLUME_PATH: dbfs:/Volumes/finance_lakehouse/bronze/raw_financial_data
 
 jobs:
-  ingest:
+  pipeline:
     runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -21,12 +25,10 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Run tests
-        run: |
-          pip install pytest
-          pytest -q
+        run: pytest -q
 
       - name: Run data ingestion
         run: python src/ingestion/market_data.py
@@ -38,20 +40,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload raw data to S3
+      - name: Archive raw data in S3
         run: aws s3 sync data/raw/ s3://${{ env.S3_BUCKET }}/raw/ --exclude ".gitkeep"
 
-  databricks:
-    needs: ingest
-    runs-on: ubuntu-latest
-    env:
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-    steps:
-      - uses: actions/checkout@v4
-
       - uses: databricks/setup-cli@main
+
+      - name: Copy fresh data into the Databricks volume
+        run: |
+          for folder in stock_prices financials company_metadata; do
+            databricks fs cp -r --overwrite "data/raw/$folder" "$VOLUME_PATH/$folder"
+          done
 
       - name: Validate bundle
         run: databricks bundle validate -t dev
@@ -59,5 +57,5 @@ jobs:
       - name: Deploy bundle
         run: databricks bundle deploy -t dev
 
-      - name: Run Databricks job (bronze -> silver -> gold -> checks)
+      - name: Run Databricks job (bronze, silver, gold, quality checks)
         run: databricks bundle run financial_lakehouse_job -t dev
