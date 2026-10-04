@@ -14,6 +14,11 @@ Python / yfinance  --->  AWS S3 (raw/)  --->  Databricks Job
                                                                          (optional) MLflow
 ```
 
+## Pipeline run
+Successful Databricks job run (setup -> bronze -> silver -> gold -> data-quality checks):
+
+![Databricks job run](docs/pipeline_run.png)
+
 ## Data
 
 10 stocks (AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM, V, WMT), daily prices from 2016, company metadata and annual financial statements.
